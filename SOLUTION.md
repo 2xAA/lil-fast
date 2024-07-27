@@ -36,3 +36,12 @@ I made these more generic in their usage, now accepting any props.
 
 The `Input` component was wrapped in a `forwardRef` to allow clearing the input
 value on click of `Clear uploaded image`, resetting the file input.
+
+## Bonus features
+
+- Added a debounced sendToServer method
+  - This works on prompt input, canvas drawing and on change of iteration number
+- Added tailwind as it was missing
+- Added basic UI loading message
+- Added basic UI disabled while waiting for response from server
+  - This was to avoid queuing. This would ideally be handled better by cancelling the http request or another internal system to only send one request at the end of the current request.

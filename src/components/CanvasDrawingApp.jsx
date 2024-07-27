@@ -5,6 +5,7 @@ import React, {
   useCallback,
   forwardRef,
 } from "react";
+import cn from "classnames";
 import _debounce from "lodash/debounce";
 
 // Basic UI components
@@ -37,6 +38,7 @@ const CanvasDrawingApp = () => {
   const [drawingCanvas, setDrawingCanvas] = useState(null);
   const [color, setColor] = useState("#000000");
   const [brushSize, setBrushSize] = useState(5);
+  const [waitingForResponse, setWaitingForResponse] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [numIterations, setNumIterations] = useState(2);
@@ -59,6 +61,10 @@ const CanvasDrawingApp = () => {
     context.fillStyle = "white";
     context.fillRect(0, 0, canvas.width, canvas.height);
   }, []);
+
+  useEffect(() => {
+    debouncedSendToServer(prompt);
+  }, [numIterations, prompt]);
 
   const handleImageUpload = (e) => {
     const [file] = e.target.files;
@@ -146,7 +152,7 @@ const CanvasDrawingApp = () => {
   }, [composite, uploadedImage]);
 
   const draw = (e) => {
-    if (!isDrawing) return;
+    if (!isDrawing || waitingForResponse) return;
 
     const canvas = drawingCanvas;
     const compositeCanvas = canvasRef.current;
@@ -164,8 +170,12 @@ const CanvasDrawingApp = () => {
     composite();
   };
 
-  const stopDrawing = () => {
+  const stopDrawing = (mouseUp) => {
     setIsDrawing(false);
+
+    if (mouseUp) {
+      debouncedSendToServer(prompt);
+    }
   };
 
   const clearCanvas = () => {
@@ -200,7 +210,11 @@ const CanvasDrawingApp = () => {
     setUploadedImage(null);
   };
 
-  const sendToServer = async (_prompt) => {
+  const sendToServer = async (_prompt = "") => {
+    if (!_prompt || waitingForResponse) {
+      return;
+    }
+
     const canvas = canvasRef.current;
     const imageBlob = await new Promise((resolve) =>
       canvas.toBlob(resolve, "image/png")
@@ -208,9 +222,10 @@ const CanvasDrawingApp = () => {
 
     const formData = new FormData();
     formData.append("image", imageBlob, "drawing.png");
-    formData.append("prompt", _prompt ?? prompt);
+    formData.append("prompt", _prompt);
     formData.append("num_iterations", numIterations.toString());
 
+    setWaitingForResponse(true);
     try {
       const response = await fetch(
         "https://lightnote-ai--img-model-inference.modal.run",
@@ -231,14 +246,10 @@ const CanvasDrawingApp = () => {
       console.error("Error:", error);
       alert("Failed to generate image. Please try again.");
     }
+    setWaitingForResponse(false);
   };
 
   const debouncedSendToServer = useCallback(_debounce(sendToServer, 500), []);
-
-  const handleDebouncedInput = (prompt) => {
-    setPrompt(prompt);
-    debouncedSendToServer(prompt);
-  };
 
   return (
     <div className="flex flex-col items-center p-4">
@@ -248,9 +259,13 @@ const CanvasDrawingApp = () => {
         height={512}
         onMouseDown={startDrawing}
         onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseOut={stopDrawing}
-        className="border border-gray-300"
+        onMouseUp={() => stopDrawing(true)}
+        onMouseOut={() => stopDrawing()}
+        className={cn(
+          "border",
+          "border-gray-300",
+          waitingForResponse && "cursor-not-allowed"
+        )}
       />
       <div className="mt-4 space-y-2 w-full max-w-md">
         <Input
@@ -279,7 +294,8 @@ const CanvasDrawingApp = () => {
           type="text"
           placeholder="Enter prompt"
           value={prompt}
-          onChange={(e) => handleDebouncedInput(e.target.value)}
+          disabled={waitingForResponse}
+          onChange={(e) => setPrompt(e.target.value)}
           className="w-full"
         />
         <Select
@@ -296,8 +312,12 @@ const CanvasDrawingApp = () => {
         <Button onClick={clearUploadedImage} className="w-full">
           Clear Uploaded Image
         </Button>
-        <Button onClick={sendToServer} className="w-full">
-          Send to Server
+        <Button
+          onClick={() => sendToServer(prompt)}
+          className="w-full disabled:bg-sky-200 disabled:cursor-not-allowed"
+          disabled={waitingForResponse}
+        >
+          {!waitingForResponse ? "Send to Server" : "Loading…"}
         </Button>
       </div>
       {generatedImage && (
