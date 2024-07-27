@@ -5,6 +5,7 @@ import React, {
   useCallback,
   forwardRef,
 } from "react";
+import _debounce from "lodash/debounce";
 
 // Basic UI components
 const Button = ({ children, className, ...props }) => (
@@ -40,8 +41,6 @@ const CanvasDrawingApp = () => {
   const [prompt, setPrompt] = useState("");
   const [numIterations, setNumIterations] = useState(2);
   const [generatedImage, setGeneratedImage] = useState(null);
-
-  // TODO: Add state for uploaded image
   const [uploadedImage, setUploadedImage] = useState(null);
 
   useEffect(() => {
@@ -65,7 +64,9 @@ const CanvasDrawingApp = () => {
     const [file] = e.target.files;
     const reader = new FileReader();
 
-    reader.addEventListener("load", () => {
+    reader.addEventListener(
+      "load",
+      () => {
         const image = new Image();
 
         image.addEventListener("load", () => {
@@ -198,42 +199,49 @@ const CanvasDrawingApp = () => {
     }
     setUploadedImage(null);
   };
-   
 
-  const sendToServer = async () => {
+  const sendToServer = async (_prompt) => {
     const canvas = canvasRef.current;
-    const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-    
+    const imageBlob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, "image/png")
+    );
+
     const formData = new FormData();
-    formData.append('image', imageBlob, 'drawing.png');
-    formData.append('prompt', prompt);
-    formData.append('num_iterations', numIterations.toString());
+    formData.append("image", imageBlob, "drawing.png");
+    formData.append("prompt", _prompt ?? prompt);
+    formData.append("num_iterations", numIterations.toString());
 
     try {
-      const response = await fetch('https://lightnote-ai--img-model-inference.modal.run', {
-        method: 'POST',
-        body: formData,
+      const response = await fetch(
+        "https://lightnote-ai--img-model-inference.modal.run",
+        {
+          method: "POST",
+          body: formData,
         }
       );
 
       if (!response.ok) {
-        throw new Error('Server response was not ok');
+        throw new Error("Server response was not ok");
       }
 
       const imageBlob = await response.blob();
       const imageUrl = URL.createObjectURL(imageBlob);
       setGeneratedImage(imageUrl);
     } catch (error) {
-      console.error('Error:', error);
-      alert('Failed to generate image. Please try again.');
+      console.error("Error:", error);
+      alert("Failed to generate image. Please try again.");
     }
   };
 
-  
+  const debouncedSendToServer = useCallback(_debounce(sendToServer, 500), []);
+
+  const handleDebouncedInput = (prompt) => {
+    setPrompt(prompt);
+    debouncedSendToServer(prompt);
+  };
 
   return (
     <div className="flex flex-col items-center p-4">
-      
       <canvas
         ref={canvasRef}
         width={512}
@@ -271,7 +279,7 @@ const CanvasDrawingApp = () => {
           type="text"
           placeholder="Enter prompt"
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => handleDebouncedInput(e.target.value)}
           className="w-full"
         />
         <Select
@@ -282,14 +290,24 @@ const CanvasDrawingApp = () => {
           <option value="1">Rapid</option>
           <option value="10">Enhanced</option>
         </Select>
-        <Button onClick={clearCanvas} className="w-full">Clear Drawing</Button>
-        <Button onClick={clearUploadedImage} className="w-full">Clear Uploaded Image</Button>
-        <Button onClick={sendToServer} className="w-full">Send to Server</Button>
+        <Button onClick={clearCanvas} className="w-full">
+          Clear Drawing
+        </Button>
+        <Button onClick={clearUploadedImage} className="w-full">
+          Clear Uploaded Image
+        </Button>
+        <Button onClick={sendToServer} className="w-full">
+          Send to Server
+        </Button>
       </div>
       {generatedImage && (
         <div className="mt-4">
           <h2 className="text-lg font-bold mb-2">Generated Image:</h2>
-          <img src={generatedImage} alt="Generated" className="max-w-full h-auto" />
+          <img
+            src={generatedImage}
+            alt="Generated"
+            className="max-w-full h-auto"
+          />
         </div>
       )}
     </div>
