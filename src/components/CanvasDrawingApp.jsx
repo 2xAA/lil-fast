@@ -192,6 +192,10 @@ const CanvasDrawingApp = () => {
   const clearUploadedImage = () => {
     fileInputRef.current.value = "";
     clearCompositeCanvas();
+
+    if (uploadedImage === null) {
+      composite();
+    }
     setUploadedImage(null);
   };
    
