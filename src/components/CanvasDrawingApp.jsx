@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from "react";
 
 // Basic UI components
 const Button = ({ onClick, children, className }) => (
@@ -32,7 +32,8 @@ const Select = ({ value, onChange, children, className }) => (
 
 const CanvasDrawingApp = () => {
   const canvasRef = useRef(null);
-  const [color, setColor] = useState('#000000');
+  const [drawingCanvas, setDrawingCanvas] = useState(null);
+  const [color, setColor] = useState("#000000");
   const [brushSize, setBrushSize] = useState(5);
   const [isDrawing, setIsDrawing] = useState(false);
   const [prompt, setPrompt] = useState('');
@@ -43,28 +44,39 @@ const CanvasDrawingApp = () => {
   const [uploadedImage, setUploadedImage] = useState(null);
 
   useEffect(() => {
+    // Create a canvas to draw the pain strokes to.
+    // If we want to clear the image or the drawing we can save either by using
+    // the canvas in the DOM as a composite canvas.
+    const drawingCanvas = document.createElement("canvas");
+    const drawingCanvasContext = drawingCanvas.getContext("2d");
+    setDrawingCanvas(drawingCanvas);
+
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    drawingCanvas.width = canvas.width;
+    drawingCanvas.height = canvas.height;
+
+    drawingCanvasContext.fillStyle = "white";
+    drawingCanvasContext.fillRect(0, 0, canvas.width, canvas.height);
   }, []);
 
   // TODO: Implement image upload functionality
-    const handleImageUpload = (e) => {
-      // Implement image upload logic here
-      console.log("Image upload not implemented yet");
-    };
-  
+  const handleImageUpload = (e) => {
+    // Implement image upload logic here
+    console.log("Image upload not implemented yet");
+  };
+
   // TODO: Implement drawing the uploaded image on canvas
-    const drawUploadedImage = () => {
-      // Implement drawing uploaded image on canvas
-      console.log("Drawing uploaded image not implemented yet");
-    };
-  
+  const drawUploadedImage = () => {
+    // Implement drawing uploaded image on canvas
+    console.log("Drawing uploaded image not implemented yet");
+  };
+
   const startDrawing = (e) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
+    const canvas = drawingCanvas;
+    const compositeCanvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const rect = compositeCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
@@ -73,20 +85,30 @@ const CanvasDrawingApp = () => {
     setIsDrawing(true);
   };
 
+  const composite = () => {
+    const compositeCanvas = canvasRef.current;
+    const compositeContext = compositeCanvas.getContext("2d");
+
+    compositeContext.drawImage(drawingCanvas, 0, 0);
+  };
+
   const draw = (e) => {
     if (!isDrawing) return;
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
+
+    const canvas = drawingCanvas;
+    const compositeCanvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    const rect = compositeCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
+
     ctx.lineTo(x, y);
     ctx.strokeStyle = color;
     ctx.lineWidth = brushSize;
-    ctx.lineCap = 'round';
+    ctx.lineCap = "round";
     ctx.stroke();
+
+    composite();
   };
 
   const stopDrawing = () => {
@@ -94,11 +116,13 @@ const CanvasDrawingApp = () => {
   };
 
   const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = 'white';
+    const canvas = drawingCanvas;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "white";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     // TODO: Consider if uploaded image should be redrawn after clearing
+
+    composite();
   };
 
   // TODO: Implement clearing the uploaded image to remove the uploaded image and reset the canvas to a blank state
