@@ -190,6 +190,7 @@ const CanvasDrawingApp = () => {
   };
 
   const clearUploadedImage = () => {
+    fileInputRef.current.value = "";
     clearCompositeCanvas();
     setUploadedImage(null);
   };
@@ -241,7 +242,9 @@ const CanvasDrawingApp = () => {
       />
       <div className="mt-4 space-y-2 w-full max-w-md">
         <Input
+          ref={fileInputRef}
           type="file"
+          accept="image/*"
           onChange={handleImageUpload}
           className="w-full"
         />
