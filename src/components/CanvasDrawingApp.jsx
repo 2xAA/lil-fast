@@ -1,42 +1,43 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  forwardRef,
+} from "react";
 
 // Basic UI components
-const Button = ({ onClick, children, className }) => (
-  <button 
-    onClick={onClick} 
+const Button = ({ children, className, ...props }) => (
+  <button
+    {...props}
     className={`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 ${className}`}
   >
     {children}
   </button>
 );
 
-const Input = ({ type, value, onChange, placeholder, className }) => (
-  <input 
-    type={type} 
-    value={value} 
-    onChange={onChange} 
-    placeholder={placeholder}
+const Input = forwardRef(({ className, ...props }, ref) => (
+  <input
+    {...props}
+    ref={ref}
     className={`border rounded px-2 py-1 ${className}`}
   />
-);
+));
 
-const Select = ({ value, onChange, children, className }) => (
-  <select 
-    value={value} 
-    onChange={onChange} 
-    className={`border rounded px-2 py-1 ${className}`}
-  >
+const Select = ({ children, className, ...props }) => (
+  <select {...props} className={`border rounded px-2 py-1 ${className}`}>
     {children}
   </select>
 );
 
 const CanvasDrawingApp = () => {
   const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [drawingCanvas, setDrawingCanvas] = useState(null);
   const [color, setColor] = useState("#000000");
   const [brushSize, setBrushSize] = useState(5);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState("");
   const [numIterations, setNumIterations] = useState(2);
   const [generatedImage, setGeneratedImage] = useState(null);
 
@@ -48,28 +49,37 @@ const CanvasDrawingApp = () => {
     // If we want to clear the image or the drawing we can save either by using
     // the canvas in the DOM as a composite canvas.
     const drawingCanvas = document.createElement("canvas");
-    const drawingCanvasContext = drawingCanvas.getContext("2d");
     setDrawingCanvas(drawingCanvas);
 
     const canvas = canvasRef.current;
+    const context = canvas.getContext("2d");
 
     drawingCanvas.width = canvas.width;
     drawingCanvas.height = canvas.height;
 
-    drawingCanvasContext.fillStyle = "white";
-    drawingCanvasContext.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "white";
+    context.fillRect(0, 0, canvas.width, canvas.height);
   }, []);
 
-  // TODO: Implement image upload functionality
   const handleImageUpload = (e) => {
-    // Implement image upload logic here
-    console.log("Image upload not implemented yet");
-  };
+    const [file] = e.target.files;
+    const reader = new FileReader();
 
-  // TODO: Implement drawing the uploaded image on canvas
-  const drawUploadedImage = () => {
-    // Implement drawing uploaded image on canvas
-    console.log("Drawing uploaded image not implemented yet");
+    reader.addEventListener("load", () => {
+        const image = new Image();
+
+        image.addEventListener("load", () => {
+          setUploadedImage(image);
+        });
+
+        image.src = reader.result;
+      },
+      false
+    );
+
+    if (file) {
+      reader.readAsDataURL(file);
+    }
   };
 
   const startDrawing = (e) => {
@@ -79,18 +89,60 @@ const CanvasDrawingApp = () => {
     const rect = compositeCanvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    
+
     ctx.beginPath();
     ctx.moveTo(x, y);
     setIsDrawing(true);
   };
 
-  const composite = () => {
+  const composite = useCallback(() => {
     const compositeCanvas = canvasRef.current;
     const compositeContext = compositeCanvas.getContext("2d");
+    const { width: canvasWidth, height: canvasHeight } = compositeCanvas;
+
+    compositeContext.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    if (!drawingCanvas) {
+      return;
+    }
+
+    if (uploadedImage) {
+      const { width: imgWidth, height: imgHeight } = uploadedImage;
+      const imgAspectRatio = imgWidth / imgHeight;
+      const canvasAspectRatio = canvasWidth / canvasHeight;
+
+      let drawWidth, drawHeight;
+
+      if (imgAspectRatio > canvasAspectRatio) {
+        // Image is wider than canvas aspect ratio
+        drawWidth = canvasWidth;
+        drawHeight = drawWidth / imgAspectRatio;
+      } else {
+        // Image is taller than canvas aspect ratio
+        drawHeight = canvasHeight;
+        drawWidth = drawHeight * imgAspectRatio;
+      }
+
+      // Calculate the position to center the image on the canvas
+      const drawX = (canvasWidth - drawWidth) / 2;
+      const drawY = (canvasHeight - drawHeight) / 2;
+
+      compositeContext.drawImage(
+        uploadedImage,
+        drawX,
+        drawY,
+        drawWidth,
+        drawHeight
+      );
+    }
 
     compositeContext.drawImage(drawingCanvas, 0, 0);
-  };
+  }, [drawingCanvas, uploadedImage]);
+
+  // Draw uploaded image when state updated
+  useEffect(() => {
+    composite();
+  }, [composite, uploadedImage]);
 
   const draw = (e) => {
     if (!isDrawing) return;
@@ -118,16 +170,28 @@ const CanvasDrawingApp = () => {
   const clearCanvas = () => {
     const canvas = drawingCanvas;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "white";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // TODO: Consider if uploaded image should be redrawn after clearing
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    clearCompositeCanvas();
 
     composite();
   };
 
-  // TODO: Implement clearing the uploaded image to remove the uploaded image and reset the canvas to a blank state
+  const clearCompositeCanvas = () => {
+    const compositeCanvas = canvasRef.current;
+    const compositeContext = compositeCanvas.getContext("2d");
+
+    compositeContext.clearRect(
+      0,
+      0,
+      compositeCanvas.width,
+      compositeCanvas.height
+    );
+  };
+
   const clearUploadedImage = () => {
-      console.log("Clearing uploaded image not implemented yet");
+    clearCompositeCanvas();
+    setUploadedImage(null);
   };
    
 
@@ -144,7 +208,8 @@ const CanvasDrawingApp = () => {
       const response = await fetch('https://lightnote-ai--img-model-inference.modal.run', {
         method: 'POST',
         body: formData,
-      });
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Server response was not ok');
@@ -175,7 +240,6 @@ const CanvasDrawingApp = () => {
         className="border border-gray-300"
       />
       <div className="mt-4 space-y-2 w-full max-w-md">
-      {/* TODO: Implement image upload functionality */}
         <Input
           type="file"
           onChange={handleImageUpload}
@@ -211,7 +275,7 @@ const CanvasDrawingApp = () => {
           <option value="1">Rapid</option>
           <option value="10">Enhanced</option>
         </Select>
-        <Button onClick={clearCanvas} className="w-full">Clear Canvas</Button>
+        <Button onClick={clearCanvas} className="w-full">Clear Drawing</Button>
         <Button onClick={clearUploadedImage} className="w-full">Clear Uploaded Image</Button>
         <Button onClick={sendToServer} className="w-full">Send to Server</Button>
       </div>
